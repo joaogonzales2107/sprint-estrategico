@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Sprint Estratégico — 4 Semanas</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d1a24">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -89,10 +93,11 @@
     border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
   }
   .remind p{font-size:13.5px;color:var(--muted);flex:1 1 200px}
-  .remind input[type="time"]{
+  .remind input[type="time"], .remind select{
     background:var(--surface-2);border:1px solid var(--line);border-radius:8px;
-    color:var(--paper);padding:8px 10px;font-size:14px;font-family:inherit;
+    color:var(--paper);padding:8px 10px;font-size:14px;font-family:inherit;max-width:100%;
   }
+  .remind select{flex:1 1 160px;min-width:0}
   .remind .mini-btn{padding:9px 14px;font-size:13px}
   .remind .state{font-size:12.5px;color:var(--ok);width:100%}
 
@@ -246,6 +251,12 @@
       <input type="time" id="remind-time" value="08:00" aria-label="Horário do lembrete">
       <button class="mini-btn" id="btn-remind">Ativar</button>
       <span class="state" id="remind-state"></span>
+    </div>
+
+    <div class="remind">
+      <p>Voz da narração (as vozes disponíveis vêm do Android — para instalar mais, veja Configurações → Sistema → Texto para voz).</p>
+      <select id="voice-select" aria-label="Voz da narração"></select>
+      <button class="mini-btn" id="voice-test">Testar</button>
     </div>
   </div>
 </header>
@@ -867,6 +878,7 @@ async function enterApp(){
   await initStatus();
   renderToday();
   await initRemind();
+  await initVoice();
 }
 
 /* =================== STATUS DOS PILARES =================== */
@@ -915,9 +927,50 @@ function renderToday(){
 /* =================== ÁUDIO (Web Speech) =================== */
 let currentUtterance = null, currentBtn = null, paused = false;
 
-function ptVoice(){
-  const vs = speechSynthesis.getVoices();
-  return vs.find(v=>/pt[-_]BR/i.test(v.lang)) || vs.find(v=>/^pt/i.test(v.lang)) || null;
+let voices = [], chosenVoiceURI = null;
+const MALE_HINT = /male|masculin|ricardo|felipe|daniel|thiago|antonio|fábio|fabio|ptd|ptc/i;
+const FEMALE_HINT = /female|feminin/i;
+
+function loadVoices(){
+  voices = speechSynthesis.getVoices();
+  const sel = $('#voice-select'); if (!sel) return;
+  const pts = voices.filter(v=>/^pt/i.test(v.lang));
+  const list = pts.length ? pts : voices;
+  sel.innerHTML = '';
+  list.forEach(v=>{
+    const o = document.createElement('option');
+    o.value = v.voiceURI; o.textContent = v.name + ' (' + v.lang + ')';
+    sel.appendChild(o);
+  });
+  if (chosenVoiceURI && list.some(v=>v.voiceURI===chosenVoiceURI)){
+    sel.value = chosenVoiceURI;
+  } else {
+    const m = list.find(v=>MALE_HINT.test(v.name) && !FEMALE_HINT.test(v.name));
+    const pick = m || list[0];
+    if (pick){ sel.value = pick.voiceURI; chosenVoiceURI = pick.voiceURI; }
+  }
+}
+function currentVoice(){
+  return voices.find(v=>v.voiceURI===chosenVoiceURI)
+      || voices.find(v=>/pt[-_]BR/i.test(v.lang))
+      || voices.find(v=>/^pt/i.test(v.lang)) || null;
+}
+async function initVoice(){
+  if (!('speechSynthesis' in window)) return;
+  chosenVoiceURI = await store.get('voice');
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+  $('#voice-select').addEventListener('change', async e=>{
+    chosenVoiceURI = e.target.value;
+    await store.set('voice', chosenVoiceURI);
+  });
+  $('#voice-test').addEventListener('click', ()=>{
+    try{ speechSynthesis.cancel(); }catch(e){}
+    const u = new SpeechSynthesisUtterance('Olá, Joao. Esta é a voz da narração do seu sprint estratégico.');
+    u.lang='pt-BR'; u.rate=1.0; u.pitch=0.92;
+    const v = currentVoice(); if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  });
 }
 function playAudio(key, btn){
   if (!('speechSynthesis' in window)){
@@ -927,8 +980,8 @@ function playAudio(key, btn){
   stopAudio();
   const a = AUDIOS[key]; if (!a) return;
   const u = new SpeechSynthesisUtterance(a.texto);
-  u.lang = 'pt-BR'; u.rate = 1.02; u.pitch = 1;
-  const v = ptVoice(); if (v) u.voice = v;
+  u.lang = 'pt-BR'; u.rate = 1.0; u.pitch = 0.92;
+  const v = currentVoice(); if (v) u.voice = v;
   u.onend = stopAudio; u.onerror = stopAudio;
   currentUtterance = u; currentBtn = btn; paused = false;
   if (btn){ btn.classList.add('playing'); btn.textContent = '■ Parar'; }
@@ -956,7 +1009,6 @@ $('#ab-toggle').addEventListener('click', () => {
   else { speechSynthesis.pause(); paused=true; $('#ab-toggle').textContent='▶'; $('#ab-state').textContent='Pausado'; }
 });
 $('#ab-stop').addEventListener('click', stopAudio);
-if ('speechSynthesis' in window) speechSynthesis.getVoices();
 
 /* =================== LEMBRETE DIÁRIO =================== */
 let remindTimer = null, lastFired = null;
