@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
 <style>
   :root{
     --ink:#0d1a24; --surface:#152634; --surface-2:#1b3040; --line:#28414f;
@@ -184,6 +185,32 @@
   .fb-card li b{color:var(--brass)}
   .signoff{text-align:center;color:var(--muted);font-size:13.5px;padding:28px 0 10px;font-style:italic;font-family:'Fraunces',serif}
 
+  /* ---------- BIBLIOTECA / LEITOR PDF ---------- */
+  .lib-item{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;
+  }
+  .lib-item .info{flex:1 1 auto;min-width:0}
+  .lib-item .info .n{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lib-item .info .p{font-size:12.5px;color:var(--muted)}
+  .lib-item .open{border:1px solid rgba(217,164,65,.5);background:var(--brass-soft);color:var(--brass);
+    border-radius:100px;padding:8px 16px;font-size:13.5px;font-weight:600}
+  .lib-item .del{border:none;background:transparent;color:var(--muted);font-size:16px;padding:6px}
+  .lib-empty{color:var(--muted);font-size:14.5px;border:1px dashed var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:10px}
+  .lib-add{display:inline-flex;align-items:center;gap:8px;margin-top:4px}
+
+  #reader{margin-top:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .reader-top{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .reader-top .t{flex:1;font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .reader-top button{border:none;background:transparent;color:var(--muted);font-size:17px;padding:4px 8px}
+  #pdf-scroll{background:#0a141c;text-align:center;max-height:72vh;overflow:auto}
+  #pdf-canvas{width:100%;height:auto;display:block}
+  .reader-controls{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;flex-wrap:wrap;border-top:1px solid var(--line)}
+  .reader-controls .mini-btn{padding:10px 18px}
+  .pg-ind{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+  .pg-ind input{width:56px;text-align:center;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:8px;color:var(--paper);padding:8px 4px;font-size:14px;font-family:inherit}
+
   /* ---------- AUDIO BAR ---------- */
   #audiobar{
     position:fixed;bottom:0;left:0;right:0;z-index:50;
@@ -197,7 +224,19 @@
   #audiobar .info .s{font-size:12px;color:var(--brass)}
   #audiobar button{border:none;background:var(--brass);color:#141414;border-radius:100px;width:40px;height:40px;font-size:15px;font-weight:700}
   #audiobar button.stop{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  #audiobar button.moon{background:transparent;border:1px solid rgba(217,164,65,.5);color:var(--brass);font-size:17px}
   .hidden{display:none!important}
+
+  /* ---------- MODO SONECA ---------- */
+  #sleep{
+    position:fixed;inset:0;z-index:200;background:#000;
+    display:none;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:24px;
+  }
+  #sleep.on{display:flex}
+  #sleep .st{font-family:'Fraunces',serif;font-size:17px;color:#2e3a3a;max-width:80%;line-height:1.4}
+  #sleep .sp{font-size:13px;color:#233030;margin-top:10px}
+  #sleep .hint{position:absolute;bottom:40px;font-size:12px;color:#1c2626}
 </style>
 </head>
 <body>
@@ -269,6 +308,7 @@
     <a href="#s4">S4 · Liderança</a>
     <a href="#opcional" class="opt">＋ Finanças</a>
     <a href="#ritual">Ritual</a>
+    <a href="#biblioteca">📚 Leitura</a>
   </div>
 </nav>
 
@@ -729,6 +769,34 @@
   </div>
 </section>
 
+<!-- ============ BIBLIOTECA ============ -->
+<section class="week" id="biblioteca">
+  <div class="wrap">
+    <div class="week-head"><span class="wk-num">Biblioteca</span></div>
+    <h2>Seus livros em PDF</h2>
+    <p class="week-thesis">Adicione seus PDFs (ebooks comprados sem DRM, artigos, resumos). Os arquivos ficam só neste aparelho, o app lembra onde você parou, e o 🎧 lê o livro em sequência, virando as páginas sozinho — toque no 🌙 da barra de áudio para escurecer a tela e ouvir com o celular no bolso.</p>
+
+    <div id="lib-list"></div>
+    <label class="mini-btn lib-add">＋ Adicionar PDF
+      <input type="file" id="pdf-input" accept="application/pdf" hidden>
+    </label>
+
+    <div id="reader" class="hidden">
+      <div class="reader-top">
+        <span class="t" id="reader-title">—</span>
+        <button id="reader-close" aria-label="Fechar leitor">✕</button>
+      </div>
+      <div id="pdf-scroll"><canvas id="pdf-canvas"></canvas></div>
+      <div class="reader-controls">
+        <button class="mini-btn line" id="pg-prev">‹ Anterior</button>
+        <span class="pg-ind"><input type="number" id="pg-num" min="1" value="1"> / <span id="pg-total">–</span></span>
+        <button class="mini-btn line" id="pg-next">Próxima ›</button>
+        <button class="mini-btn" id="pg-listen">🎧 Ouvir página</button>
+      </div>
+    </div>
+  </div>
+</section>
+
 </div><!-- /app -->
 
 <!-- ============ AUDIO BAR ============ -->
@@ -737,8 +805,15 @@
     <div class="t" id="ab-title">—</div>
     <div class="s" id="ab-state">Narrando…</div>
   </div>
+  <button class="moon" id="ab-sleep" aria-label="Modo soneca: tela preta com narração">🌙</button>
   <button id="ab-toggle" aria-label="Pausar ou continuar">⏸</button>
   <button class="stop" id="ab-stop" aria-label="Parar">✕</button>
+</div>
+
+<div id="sleep">
+  <div class="st" id="sleep-title">—</div>
+  <div class="sp" id="sleep-page"></div>
+  <div class="hint">toque em qualquer lugar para voltar</div>
 </div>
 
 <script>
@@ -879,6 +954,7 @@ async function enterApp(){
   renderToday();
   await initRemind();
   await initVoice();
+  initLib();
 }
 
 /* =================== STATUS DOS PILARES =================== */
@@ -973,30 +1049,77 @@ async function initVoice(){
   });
 }
 function playAudio(key, btn){
+  const a = AUDIOS[key]; if (!a) return;
+  speakText(a.titulo, a.texto, btn);
+}
+function speakText(titulo, texto, btn, onDone){
   if (!('speechSynthesis' in window)){
     alert('Seu navegador não tem sintetizador de voz. Abra no Chrome ou Safari do celular.');
     return;
   }
-  stopAudio();
-  const a = AUDIOS[key]; if (!a) return;
-  const u = new SpeechSynthesisUtterance(a.texto);
-  u.lang = 'pt-BR'; u.rate = 1.0; u.pitch = 0.92;
-  const v = currentVoice(); if (v) u.voice = v;
-  u.onend = stopAudio; u.onerror = stopAudio;
-  currentUtterance = u; currentBtn = btn; paused = false;
+  const sleepWasOn = $('#sleep').classList.contains('on');
+  stopAudio(!sleepWasOn);
+  if (!texto || !texto.trim()){ alert('Não encontrei texto para narrar nesta página (pode ser um PDF escaneado, só com imagem).'); return; }
+  // Quebra em trechos por frase (evita o corte do Android em falas muito longas)
+  const frases = texto.match(/[^.!?…;]+[.!?…;]*/g) || [texto];
+  speakQ = []; let buf = '';
+  for (const f of frases){
+    if ((buf + f).length > 220){ if (buf) speakQ.push(buf); buf = f; }
+    else buf += f;
+  }
+  if (buf.trim()) speakQ.push(buf);
+  speakIdx = 0; onQueueEnd = onDone || null;
+  currentBtn = btn; paused = false;
   if (btn){ btn.classList.add('playing'); btn.textContent = '■ Parar'; }
-  $('#ab-title').textContent = a.titulo;
+  $('#ab-title').textContent = titulo;
+  $('#sleep-title').textContent = titulo;
   $('#ab-state').textContent = 'Narrando…';
   $('#ab-toggle').textContent = '⏸';
   $('#audiobar').classList.add('on');
+  requestWake();
+  speakNextChunk();
+}
+function speakNextChunk(){
+  if (speakIdx >= speakQ.length){
+    const cb = onQueueEnd; onQueueEnd = null;
+    if (cb){ cb(); } else { stopAudio(); }
+    return;
+  }
+  const u = new SpeechSynthesisUtterance(speakQ[speakIdx++]);
+  u.lang = 'pt-BR'; u.rate = 1.0; u.pitch = 0.92;
+  const v = currentVoice(); if (v) u.voice = v;
+  u.onend = () => { if (currentUtterance === u) speakNextChunk(); };
+  u.onerror = () => { if (currentUtterance === u) stopAudio(); };
+  currentUtterance = u;
   speechSynthesis.speak(u);
 }
-function stopAudio(){
+function stopAudio(exitSleep = true){
+  onQueueEnd = null; speakQ = []; speakIdx = 0;
+  currentUtterance = null;
   try{ speechSynthesis.cancel(); }catch(e){}
   if (currentBtn){ currentBtn.classList.remove('playing'); currentBtn.textContent = '▶ Ouvir resumo'; }
-  currentUtterance = null; currentBtn = null; paused = false;
+  currentBtn = null; paused = false;
   $('#audiobar').classList.remove('on');
+  if (exitSleep) $('#sleep').classList.remove('on');
+  releaseWake();
 }
+
+/* Wake lock: mantém a tela ativa durante a narração */
+let wakeLock = null, speakQ = [], speakIdx = 0, onQueueEnd = null;
+async function requestWake(){
+  try{ if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); }catch(e){}
+}
+function releaseWake(){
+  try{ if (wakeLock) wakeLock.release(); }catch(e){}
+  wakeLock = null;
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && (currentUtterance || speakQ.length)) requestWake();
+});
+
+/* Modo soneca: tela preta com a narração rolando */
+$('#ab-sleep').addEventListener('click', () => { $('#sleep').classList.add('on'); });
+$('#sleep').addEventListener('click', () => { $('#sleep').classList.remove('on'); });
 document.addEventListener('click', e => {
   const btn = e.target.closest('.play-btn');
   if (!btn) return;
@@ -1054,6 +1177,130 @@ function armRemind(time, silent){
     const p = activePilar();
     try{ new Notification('Sprint Estratégico', { body:'Lembretes ativados. Pilar em andamento: ' + PILARES[p].nome }); }catch(e){}
   }
+}
+
+/* =================== BIBLIOTECA (PDF) =================== */
+function idb(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('sprint-lib', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('books', {keyPath:'id'});
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbTx(mode, fn){
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('books', mode);
+    const out = fn(tx.objectStore('books'));
+    tx.oncomplete = () => res(out && out.result !== undefined ? out.result : undefined);
+    tx.onerror = () => rej(tx.error);
+  });
+}
+const libPut = b => idbTx('readwrite', s => s.put(b));
+const libAll = () => idbTx('readonly', s => s.getAll());
+const libGet = id => idbTx('readonly', s => s.get(id));
+const libDel = id => idbTx('readwrite', s => s.delete(id));
+
+let pdfDoc = null, currentBook = null, pageNum = 1, rendering = false;
+
+async function renderLib(){
+  let books = [];
+  try{ books = await libAll() || []; }catch(e){}
+  const list = $('#lib-list');
+  if (!books.length){
+    list.innerHTML = '<div class="lib-empty">Nenhum PDF ainda. Toque em "Adicionar PDF" e escolha um arquivo do seu aparelho.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  books.sort((a,b)=>b.opened-a.opened).forEach(b => {
+    const el = document.createElement('div');
+    el.className = 'lib-item';
+    el.innerHTML = '<div class="info"><div class="n"></div><div class="p">página ' + (b.page||1) + (b.total?(' de '+b.total):'') + '</div></div>' +
+                   '<button class="open">Ler</button><button class="del" aria-label="Remover">✕</button>';
+    el.querySelector('.n').textContent = b.name;
+    el.querySelector('.open').addEventListener('click', () => openBook(b.id));
+    el.querySelector('.del').addEventListener('click', async () => {
+      if (confirm('Remover "' + b.name + '" da biblioteca?')){ await libDel(b.id); renderLib(); }
+    });
+    list.appendChild(el);
+  });
+}
+
+async function openBook(id){
+  if (!window.pdfjsLib){ alert('O leitor ainda está carregando (ou sem internet). Tente de novo em alguns segundos.'); return; }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const b = await libGet(id); if (!b) return;
+  currentBook = b;
+  pdfDoc = await pdfjsLib.getDocument({data: b.data.slice(0)}).promise;
+  currentBook.total = pdfDoc.numPages;
+  pageNum = Math.min(b.page || 1, pdfDoc.numPages);
+  $('#reader-title').textContent = b.name;
+  $('#pg-total').textContent = pdfDoc.numPages;
+  $('#reader').classList.remove('hidden');
+  await renderPage();
+  $('#reader').scrollIntoView({behavior:'smooth'});
+}
+
+async function renderPage(){
+  if (!pdfDoc || rendering) return;
+  rendering = true;
+  try{
+    const page = await pdfDoc.getPage(pageNum);
+    const canvas = $('#pdf-canvas');
+    const holder = $('#pdf-scroll');
+    const base = page.getViewport({scale:1});
+    const scale = (holder.clientWidth / base.width) * (window.devicePixelRatio || 1);
+    const vp = page.getViewport({scale});
+    canvas.width = vp.width; canvas.height = vp.height;
+    await page.render({canvasContext: canvas.getContext('2d'), viewport: vp}).promise;
+    $('#pg-num').value = pageNum;
+    currentBook.page = pageNum; currentBook.opened = Date.now();
+    await libPut(currentBook);
+    renderLib();
+  } finally { rendering = false; }
+}
+
+function initLib(){
+  if (!('indexedDB' in window)){ $('#lib-list').innerHTML = '<div class="lib-empty">Este navegador não suporta a biblioteca local.</div>'; return; }
+  renderLib();
+  $('#pdf-input').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    if (f.size > 60*1024*1024){ alert('PDF muito grande (máx. ~60 MB).'); return; }
+    const data = await f.arrayBuffer();
+    const book = {id: 'b'+Date.now(), name: f.name.replace(/\.pdf$/i,''), data, page:1, total:null, opened: Date.now()};
+    try{ await libPut(book); }catch(err){ alert('Não consegui salvar (espaço insuficiente no aparelho?).'); return; }
+    e.target.value = '';
+    renderLib();
+    openBook(book.id);
+  });
+  $('#pg-prev').addEventListener('click', () => { if (pageNum>1){ pageNum--; renderPage(); } });
+  $('#pg-next').addEventListener('click', () => { if (pdfDoc && pageNum<pdfDoc.numPages){ pageNum++; renderPage(); } });
+  $('#pg-num').addEventListener('change', e => {
+    if (!pdfDoc) return;
+    const n = parseInt(e.target.value,10);
+    if (n>=1 && n<=pdfDoc.numPages){ pageNum = n; renderPage(); }
+  });
+  $('#reader-close').addEventListener('click', () => { stopAudio(); $('#reader').classList.add('hidden'); pdfDoc=null; currentBook=null; });
+  $('#pg-listen').addEventListener('click', () => speakCurrentPage());
+}
+
+async function speakCurrentPage(){
+  if (!pdfDoc || !currentBook) return;
+  const page = await pdfDoc.getPage(pageNum);
+  const tc = await page.getTextContent();
+  const texto = tc.items.map(i=>i.str).join(' ').replace(/\s+/g,' ').trim();
+  $('#sleep-page').textContent = 'página ' + pageNum + ' de ' + pdfDoc.numPages;
+  speakText(currentBook.name, texto, null, async () => {
+    if (pdfDoc && pageNum < pdfDoc.numPages){
+      pageNum++;
+      await renderPage();
+      speakCurrentPage();          // continua na próxima página
+    } else {
+      $('#ab-state').textContent = 'Fim do livro 🎉';
+      setTimeout(stopAudio, 2500);
+    }
+  });
 }
 
 /* =================== BOOT =================== */
